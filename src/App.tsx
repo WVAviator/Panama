@@ -1,51 +1,69 @@
 import { createSignal } from 'solid-js';
-import logo from './assets/logo.svg';
 import { invoke } from '@tauri-apps/api/tauri';
 import './App.css';
 
-function App() {
-  const [greetMsg, setGreetMsg] = createSignal('');
-  const [name, setName] = createSignal('');
+interface ReadResponse {
+  output: string;
+  instanceId: number;
+  error?: string;
+}
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-    setGreetMsg(await invoke('greet', { name: name() }));
-  }
+interface WriteResponse {
+  instanceId: number;
+  error?: string;
+}
+
+function App() {
+  const [lines, setLines] = createSignal<string[]>([]);
+  const [input, setInput] = createSignal<string>('');
+
+  const readStdout = async () => {
+    const { output, error } = (await invoke('read', {
+      instanceId: 0,
+    })) as ReadResponse;
+    if (error) {
+      console.error(error);
+      const errorLines = error.split('\n');
+      setLines((lines) => [...lines, ...errorLines]);
+      return;
+    }
+    const outputLines = output.split('\n');
+    setLines((lines) => [...lines, ...outputLines]);
+  };
+
+  const handleSubmit = async (e: Event) => {
+    e.preventDefault();
+    console.log(`Submitting ${input()}`);
+    const { error } = (await invoke('write', {
+      input: input(),
+      instanceId: 0,
+    })) as WriteResponse;
+    if (error) {
+      console.error(error);
+      const errorLines = error.split('\n');
+      setLines((lines) => [...lines, ...errorLines]);
+      return;
+    }
+    setInput('');
+    window.scrollTo(0, document.body.scrollHeight);
+    await readStdout();
+  };
+
+  const handleInput = (e: Event) => {
+    const target = e.target as HTMLInputElement;
+    setInput(target.value);
+  };
 
   return (
     <div class="container">
-      <h1>Welcome to Tauri!</h1>
-
-      <div class="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/vite.svg" class="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" class="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://solidjs.com" target="_blank">
-          <img src={logo} class="logo solid" alt="Solid logo" />
-        </a>
-      </div>
-
-      <p>Click on the Tauri, Vite, and Solid logos to learn more.</p>
-
-      <form
-        class="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
+      {lines().map((line) => (
+        <p>{line}</p>
+      ))}
+      <form onSubmit={handleSubmit}>
+        {`> `}
+        <input value={input()} onChange={handleInput} autocorrect="off" />
+        <button type="submit">Submit</button>
       </form>
-
-      <p>{greetMsg()}</p>
     </div>
   );
 }

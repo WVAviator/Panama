@@ -1,6 +1,6 @@
 use super::pty_error::PtyError;
 use portable_pty::{Child, CommandBuilder, PtyPair};
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 
 pub struct PtyInstance {
     pty_pair: PtyPair,
@@ -48,12 +48,23 @@ impl PtyInstance {
     }
 
     pub fn read(&mut self) -> Result<String, PtyError> {
-        let mut output = String::new();
-        self.stdout.read_to_string(&mut output).map_err(|e| {
-            PtyError::ReadError(format!("Unable to read from pseudoterminal.\n{:?}", e))
+        let mut buf_reader = BufReader::new(&mut self.stdout);
+        let data = buf_reader.fill_buf().map_err(|e| {
+            PtyError::ReadError(format!(
+                "Unable to read from pseudoterminal buffer.\n{:?}",
+                e
+            ))
         })?;
 
-        Ok(output)
+        if data.len() > 0 {
+            let data_str = std::str::from_utf8(data).map_err(|e| {
+                PtyError::ReadError(format!("Error converting buffer to UTF8.\n{:?}", e))
+            })?;
+
+            Ok(data_str.to_string())
+        } else {
+            Ok(String::new())
+        }
     }
 
     pub fn write(&mut self, input: String) -> Result<(), PtyError> {
