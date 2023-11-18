@@ -10,8 +10,8 @@ use self::{pty_error::PtyError, pty_instance::PtyInstance};
 use portable_pty::{native_pty_system, PtySize, PtySystem};
 
 pub struct ApplicationState {
-    pty_system: Arc<Mutex<Box<dyn PtySystem + Send>>>,
-    instances: Arc<Mutex<HashMap<u32, PtyInstance>>>,
+    pub pty_system: Arc<Mutex<Box<dyn PtySystem + Send>>>,
+    pub instances: Arc<Mutex<HashMap<u32, PtyInstance>>>,
 }
 
 impl ApplicationState {
