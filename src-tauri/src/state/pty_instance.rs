@@ -39,7 +39,11 @@ impl PtyInstance {
         })
     }
 
-    pub fn destroy(&mut self) {
-        self.child.kill();
+    pub fn destroy(&mut self) -> Result<(), PtyError> {
+        self.child.kill().map_err(|e| {
+            PtyError::DestructionError(format!("Unable to kill child process.\n{:?}", e))
+        })?;
+
+        Ok(())
     }
 }

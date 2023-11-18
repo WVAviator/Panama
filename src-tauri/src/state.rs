@@ -64,10 +64,12 @@ impl ApplicationState {
         Ok(instance_id)
     }
 
-    pub fn destroy_instance(&self, instance_id: u32) {
+    pub fn destroy_instance(&self, instance_id: u32) -> Result<(), PtyError> {
         let mut instances = self.instances.lock().unwrap();
         if let Some(instance) = instances.get_mut(&instance_id) {
-            instance.destroy();
+            instance.destroy()?;
         }
+
+        Ok(())
     }
 }
