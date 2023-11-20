@@ -9,6 +9,7 @@ use tauri::State;
 #[derive(serde::Serialize)]
 struct WriteResponse {
     instance_id: u32,
+    output: String,
     error: Option<String>,
 }
 
@@ -18,21 +19,21 @@ fn write(
     input: String,
     state: State<'_, ApplicationState>,
 ) -> Result<WriteResponse, WriteResponse> {
-    println!("Command write called with input: {}", input);
     let mut instances = state.instances.lock().unwrap();
     let instance = instances.get_mut(&instance_id).ok_or(WriteResponse {
         instance_id,
+        output: String::new(),
         error: Some(format!("Instance with ID {} does not exist.", instance_id)),
     })?;
-    instance
-        .write(format!("{}\r\n", input))
-        .map_err(|e| WriteResponse {
-            instance_id,
-            error: Some(format!("{:?}", e)),
-        })?;
+    let output = instance.write(input).map_err(|e| WriteResponse {
+        instance_id,
+        output: String::new(),
+        error: Some(format!("{:?}", e)),
+    })?;
 
     Ok(WriteResponse {
         instance_id,
+        output,
         error: None,
     })
 }

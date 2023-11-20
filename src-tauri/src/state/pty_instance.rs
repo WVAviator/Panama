@@ -67,9 +67,11 @@ impl PtyInstance {
         }
     }
 
-    pub fn write(&mut self, input: String) -> Result<(), PtyError> {
+    pub fn write(&mut self, input: String) -> Result<String, PtyError> {
         self.stdin.write_all(input.as_bytes()).map_err(|e| {
             PtyError::WriteError(format!("Unable to write to pseudoterminal.\n{:?}", e))
-        })
+        })?;
+
+        return self.read();
     }
 }
