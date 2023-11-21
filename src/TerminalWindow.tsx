@@ -1,20 +1,49 @@
 import { invoke } from '@tauri-apps/api';
+import { appWindow } from '@tauri-apps/api/window';
+import { createSignal } from 'solid-js';
 import { XTerm, Terminal } from 'solid-xterm';
 
-interface WriteResponse {
-  instanceId: number;
+interface CreateResponse {
+  instance_id: number;
+}
+
+interface ReadResponse {
   output: string;
-  error?: string;
 }
 
 const TerminalWindow = () => {
-  const handleData = async (data: string, terminal: Terminal) => {
+  const [instanceId, setInstanceId] = createSignal<number>(0);
+
+  const handleMount = async (terminal: Terminal) => {
     try {
-      const { output } = (await invoke('write', {
+      const response = await invoke<CreateResponse>('create', {
+        cols: terminal.cols,
+        rows: terminal.rows,
+      });
+      const { instance_id: id } = response;
+      setInstanceId(id);
+
+      const unlisten = await appWindow.listen(`read:${id}`, (event) => {
+        const { output } = event.payload as ReadResponse;
+        terminal.write(output);
+      });
+
+      return () => {
+        unlisten();
+      };
+    } catch (e) {
+      console.error(e);
+      return () => {};
+    }
+  };
+
+  const handleData = async (data: string) => {
+    const id = instanceId();
+    try {
+      await invoke('write', {
+        instanceId: id,
         input: data,
-        instanceId: 0,
-      })) as WriteResponse;
-      terminal.write(output);
+      });
     } catch (e) {
       console.error(e);
       return;
@@ -23,7 +52,7 @@ const TerminalWindow = () => {
 
   return (
     <div>
-      <XTerm onData={handleData} />
+      <XTerm onData={handleData} onMount={handleMount} />
     </div>
   );
 };

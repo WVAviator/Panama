@@ -1771,6 +1771,7 @@ name = "panama"
 version = "0.0.0"
 dependencies = [
  "portable-pty",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "tauri",

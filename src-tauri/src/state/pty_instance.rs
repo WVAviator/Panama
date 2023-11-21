@@ -1,16 +1,27 @@
 use super::pty_error::PtyError;
-use portable_pty::{Child, CommandBuilder, PtyPair};
-use std::io::{BufRead, BufReader, Read, Write};
+use portable_pty::{Child, CommandBuilder, PtyPair, PtySize};
+use std::io::Write;
 
 pub struct PtyInstance {
-    pty_pair: PtyPair,
+    pub pty_pair: PtyPair,
     child: Box<dyn Child + Send + Sync>,
-    stdout: Box<dyn Read + Send>,
-    stdin: Box<dyn Write + Send>,
+    pub writer: Box<dyn Write + Send>,
 }
 
 impl PtyInstance {
-    pub fn create(pty_pair: PtyPair) -> Result<Self, PtyError> {
+    pub fn create(rows: u16, cols: u16) -> Result<Self, PtyError> {
+        let pty_system = portable_pty::native_pty_system();
+        let pty_pair = pty_system
+            .openpty(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|e| {
+                PtyError::CreationError(format!("Unable to create pseudoterminal pair.\n{:?}", e))
+            })?;
+
         let cmd = CommandBuilder::new("bash");
         let child = pty_pair.slave.spawn_command(cmd).map_err(|e| {
             PtyError::CreationError(format!(
@@ -18,13 +29,8 @@ impl PtyInstance {
                 e
             ))
         })?;
-        let stdout = pty_pair.master.try_clone_reader().map_err(|e| {
-            PtyError::CreationError(format!(
-                "Unable to clone reader from pseudoterminal pair.\n{:?}",
-                e
-            ))
-        })?;
-        let stdin = pty_pair.master.take_writer().map_err(|e| {
+
+        let writer = pty_pair.master.take_writer().map_err(|e| {
             PtyError::CreationError(format!(
                 "Unable to take writer from psuedoterminal pair.\n{:?}",
                 e
@@ -34,8 +40,7 @@ impl PtyInstance {
         Ok(PtyInstance {
             pty_pair,
             child,
-            stdout,
-            stdin,
+            writer,
         })
     }
 
@@ -45,33 +50,5 @@ impl PtyInstance {
         })?;
 
         Ok(())
-    }
-
-    pub fn read(&mut self) -> Result<String, PtyError> {
-        let mut buf_reader = BufReader::new(&mut self.stdout);
-        let data = buf_reader.fill_buf().map_err(|e| {
-            PtyError::ReadError(format!(
-                "Unable to read from pseudoterminal buffer.\n{:?}",
-                e
-            ))
-        })?;
-
-        if data.len() > 0 {
-            let data_str = std::str::from_utf8(data).map_err(|e| {
-                PtyError::ReadError(format!("Error converting buffer to UTF8.\n{:?}", e))
-            })?;
-
-            Ok(data_str.to_string())
-        } else {
-            Ok(String::new())
-        }
-    }
-
-    pub fn write(&mut self, input: String) -> Result<String, PtyError> {
-        self.stdin.write_all(input.as_bytes()).map_err(|e| {
-            PtyError::WriteError(format!("Unable to write to pseudoterminal.\n{:?}", e))
-        })?;
-
-        return self.read();
     }
 }
