@@ -22,7 +22,7 @@ impl PtyInstance {
                 PtyError::CreationError(format!("Unable to create pseudoterminal pair.\n{:?}", e))
             })?;
 
-        let cmd = CommandBuilder::new("bash");
+        let cmd = CommandBuilder::new("zsh");
         let child = pty_pair.slave.spawn_command(cmd).map_err(|e| {
             PtyError::CreationError(format!(
                 "Unable to spawn command in new pseudoterminal pair.\n{:?}",

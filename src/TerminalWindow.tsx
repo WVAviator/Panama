@@ -52,7 +52,14 @@ const TerminalWindow = () => {
 
   return (
     <div>
-      <XTerm onData={handleData} onMount={handleMount} />
+      <XTerm
+        onData={handleData}
+        onMount={handleMount}
+        options={{
+          cursorStyle: 'block',
+          fontFamily: '"JetBrains Mono", "Roboto Mono", monospace',
+        }}
+      />
     </div>
   );
 };
