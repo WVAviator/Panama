@@ -1,0 +1,22 @@
+.container {
+  display: flex;
+  gap: 2px;
+}
+
+.tab {
+  padding: 0.5em 1em;
+  border: 1px solid transparent;
+  border-radius: 8px 8px 0 0;
+  background-color: #ffffff;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  color: #0f0f0f;
+  transition: border-color 0.25s;
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+}
+
+.tab.active {
+  border-color: #396cd8;
+  background-color: #e8e8e8;
+}

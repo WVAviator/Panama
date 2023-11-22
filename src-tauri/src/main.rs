@@ -27,10 +27,10 @@ struct ReadResponse {
 fn create(
     rows: u16,
     cols: u16,
+    instance_id: u32,
     window: Window,
     state: State<'_, ApplicationState>,
 ) -> Result<CreateResponse, PtyResponseError> {
-    let instance_id = rand::random::<u32>();
     println!("Creating pty instance with id: {}", instance_id);
 
     let (tx, rx) = std::sync::mpsc::channel();
