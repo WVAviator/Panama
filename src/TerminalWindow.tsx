@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api';
 import { appWindow } from '@tauri-apps/api/window';
+import { FitAddon } from '@xterm/addon-fit';
 import { createSignal } from 'solid-js';
-import { XTerm, Terminal } from 'solid-xterm';
+import { Terminal, XTerm } from 'solid-xterm';
 
 interface CreateResponse {
   instance_id: number;
@@ -56,9 +57,9 @@ const TerminalWindow = () => {
         onData={handleData}
         onMount={handleMount}
         options={{
-          cursorStyle: 'block',
           fontFamily: '"JetBrains Mono", "Roboto Mono", monospace',
         }}
+        addons={[FitAddon]}
       />
     </div>
   );

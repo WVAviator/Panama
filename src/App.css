@@ -5,3 +5,7 @@
   margin: 0;
   padding: 0;
 }
+
+.xterm-cursor {
+  z-index: 1000;
+}
