@@ -10,7 +10,7 @@ use std::{
 };
 
 use pty_response_error::PtyResponseError;
-use state::{pty_instance::PtyInstance, ApplicationState};
+use state::{pty_error::PtyError, pty_instance::PtyInstance, ApplicationState};
 use tauri::{State, Window};
 
 #[derive(serde::Serialize)]
@@ -36,7 +36,12 @@ fn create(
     let (tx, rx) = std::sync::mpsc::channel();
     let instances_ref = Arc::clone(&state.pty_write_tx_map);
     {
-        let mut instances = instances_ref.lock().unwrap();
+        let mut instances = instances_ref.lock().map_err(|e| {
+            PtyError::InternalError(format!(
+                "Error occurred while obtaining lock to instances map.\n{:?}",
+                e
+            ))
+        })?;
         instances.insert(instance_id, tx);
     }
 
@@ -45,20 +50,27 @@ fn create(
         let mut writer = instance.writer;
 
         std::thread::spawn(move || loop {
-            let write = rx.recv().unwrap();
+            let write = rx.recv().expect("Error occurred receiving write message.");
             writer
                 .write_all(write.as_bytes())
                 .expect("Unable to write to instance");
         });
 
-        loop {
-            let reader = instance.pty_pair.master.try_clone_reader().unwrap();
-            let mut buf_reader = BufReader::new(reader);
+        let reader = instance
+            .pty_pair
+            .master
+            .try_clone_reader()
+            .expect("Error occurred cloning reader from pty master.");
+        let mut buf_reader = BufReader::new(reader);
 
-            let data = buf_reader.fill_buf().unwrap();
+        loop {
+            let data = buf_reader
+                .fill_buf()
+                .expect("Error occurred during buffer read.");
             let len = data.len();
 
-            let data = std::str::from_utf8(data).unwrap().to_string();
+            let data =
+                String::from_utf8(data.to_vec()).expect("Unable to parse read buffer into string.");
             buf_reader.consume(len);
 
             window
@@ -66,7 +78,7 @@ fn create(
                     format!("read:{}", instance_id).as_str(),
                     ReadResponse { output: data },
                 )
-                .unwrap();
+                .expect("Error occurred while emitting window read event.");
         }
     });
 
@@ -80,9 +92,24 @@ fn write(
     state: State<'_, ApplicationState>,
 ) -> Result<(), PtyResponseError> {
     let instances_ref = Arc::clone(&state.pty_write_tx_map);
-    let mut instances = instances_ref.lock().unwrap();
-    let tx = instances.get_mut(&instance_id).unwrap();
-    tx.send(input).unwrap();
+    let mut instances = instances_ref.lock().map_err(|e| {
+        PtyError::InternalError(format!(
+            "Error occurred obtaining lock to instaces map.\n{:?}",
+            e
+        ))
+    })?;
+    let tx = instances
+        .get_mut(&instance_id)
+        .ok_or(PtyError::WriteError(format!(
+            "Instance with id {} not found.",
+            &instance_id
+        )))?;
+    tx.send(input).map_err(|e| {
+        PtyError::InternalError(format!(
+            "Error occurred transmitting write to instance thread.\n{:?}",
+            e
+        ))
+    })?;
 
     Ok(())
 }
@@ -93,5 +120,5 @@ fn main() {
         .manage(application_state)
         .invoke_handler(tauri::generate_handler![create, write])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect("Error occurred while running tauri application.");
 }
