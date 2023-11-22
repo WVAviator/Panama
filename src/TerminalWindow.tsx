@@ -11,9 +11,10 @@ interface ReadResponse {
 interface TerminalProps {
   instanceId: number;
   active: Accessor<boolean>;
+  onDirChange?: (dir: string) => void;
 }
 
-const TerminalWindow = ({ instanceId, active }: TerminalProps) => {
+const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
   const handleMount = async (terminal: Terminal) => {
     try {
       await invoke('create', {
@@ -53,6 +54,12 @@ const TerminalWindow = ({ instanceId, active }: TerminalProps) => {
       <XTerm
         onData={handleData}
         onMount={handleMount}
+        onTitleChange={(title) => {
+          if (title.includes(':')) {
+            const titleParts = title.split(':');
+            onDirChange?.(titleParts[titleParts.length - 1]);
+          }
+        }}
         options={{
           fontFamily: '"JetBrains Mono", "Roboto Mono", monospace',
         }}

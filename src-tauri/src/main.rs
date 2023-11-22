@@ -33,7 +33,8 @@ fn create(
 ) -> Result<CreateResponse, PtyResponseError> {
     println!("Creating pty instance with id: {}", instance_id);
 
-    let (tx, rx) = std::sync::mpsc::channel();
+    let (write_tx, write_rx) = std::sync::mpsc::channel();
+
     let instances_ref = Arc::clone(&state.pty_write_tx_map);
     {
         let mut instances = instances_ref.lock().map_err(|e| {
@@ -42,7 +43,7 @@ fn create(
                 e
             ))
         })?;
-        instances.insert(instance_id, tx);
+        instances.insert(instance_id, write_tx);
     }
 
     std::thread::spawn(move || {
@@ -50,7 +51,9 @@ fn create(
         let mut writer = instance.writer;
 
         std::thread::spawn(move || loop {
-            let write = rx.recv().expect("Error occurred receiving write message.");
+            let write = write_rx
+                .recv()
+                .expect("Error occurred receiving write message.");
             writer
                 .write_all(write.as_bytes())
                 .expect("Unable to write to instance");
@@ -110,6 +113,21 @@ fn write(
             e
         ))
     })?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn destroy(instance_id: u32, state: State<'_, ApplicationState>) -> Result<(), PtyResponseError> {
+    let instances_ref = Arc::clone(&state.pty_write_tx_map);
+    let mut instances = instances_ref.lock().map_err(|e| {
+        PtyError::InternalError(format!(
+            "Error occurred obtaining lock to instaces map.\n{:?}",
+            e
+        ))
+    })?;
+
+    instances.remove(&instance_id);
 
     Ok(())
 }

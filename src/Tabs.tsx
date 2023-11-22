@@ -1,28 +1,25 @@
 import './Tabs.css';
-import { Accessor, Setter } from 'solid-js';
-
-export interface Tab {
-  title: string;
-  instanceId: number;
-}
+import { Accessor, For, Setter } from 'solid-js';
 
 interface TabsProps {
-  tabs: Accessor<Tab[]>;
+  tabNames: Accessor<string[]>;
   activeTab: Accessor<number>;
   setActiveTab: Setter<number>;
 }
 
-const Tabs = ({ tabs, activeTab, setActiveTab }: TabsProps) => {
+const Tabs = ({ tabNames, activeTab, setActiveTab }: TabsProps) => {
   return (
     <div class={'container'}>
-      {tabs().map((tab, index) => (
-        <div
-          class={activeTab() === index ? 'tab active' : 'tab'}
-          onClick={() => setActiveTab(index)}
-        >
-          {tab.title}
-        </div>
-      ))}
+      <For each={tabNames()}>
+        {(tab, index) => (
+          <div
+            class={activeTab() === index() ? 'tab active' : 'tab'}
+            onClick={() => setActiveTab(index())}
+          >
+            {tab}
+          </div>
+        )}
+      </For>
     </div>
   );
 };
