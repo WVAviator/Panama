@@ -56,6 +56,25 @@ const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
     }
   };
 
+  const handleResize = async ({
+    cols,
+    rows,
+  }: {
+    cols: number;
+    rows: number;
+  }) => {
+    try {
+      await invoke('resize', {
+        instanceId,
+        cols,
+        rows,
+      });
+    } catch (e) {
+      console.error(e);
+      return;
+    }
+  };
+
   return (
     <div
       style={{ display: active() ? 'block' : 'none' }}
@@ -64,6 +83,7 @@ const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
       <XTerm
         onData={handleData}
         onMount={handleMount}
+        onResize={handleResize}
         onTitleChange={(title) => {
           if (title.includes(':')) {
             const titleParts = title.split(':');

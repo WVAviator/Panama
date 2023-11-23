@@ -9,6 +9,7 @@ use std::{
     sync::Arc,
 };
 
+use portable_pty::PtySize;
 use pty_response_error::PtyResponseError;
 use state::{
     pty_error::PtyError,
@@ -96,6 +97,12 @@ fn create(
                         .expect("Unable to write EOF to instance");
                     break;
                 }
+                Ok(PtyMessage::Resize(_, _)) => {
+                    // Writing an EOF will unblock the read thread so that it can receive its interrupt message.
+                    writer
+                        .write_all(&[4])
+                        .expect("Unable to write EOF to instance");
+                }
                 _ => {
                     println!("Error occurred while receiving write message.");
                     break;
@@ -119,6 +126,18 @@ fn create(
                         instance_id
                     );
                     break;
+                }
+                Ok(PtyMessage::Resize(rows, cols)) => {
+                    instance
+                        .pty_pair
+                        .master
+                        .resize(PtySize {
+                            rows,
+                            cols,
+                            pixel_width: 0,
+                            pixel_height: 0,
+                        })
+                        .expect("Error occurred resizing pty instance.");
                 }
                 _ => {}
             }
@@ -222,11 +241,52 @@ fn destroy(instance_id: u32, state: State<'_, ApplicationState>) -> Result<(), P
     Ok(())
 }
 
+#[tauri::command]
+fn resize(
+    instance_id: u32,
+    rows: u16,
+    cols: u16,
+    state: State<'_, ApplicationState>,
+) -> Result<(), PtyResponseError> {
+    let thread_map = Arc::clone(&state.pty_thread_map);
+    let mut threads = thread_map.lock().map_err(|e| {
+        PtyError::InternalError(format!(
+            "Error occurred obtaining lock to instaces map.\n{:?}",
+            e
+        ))
+    })?;
+
+    let pty_thread = threads
+        .get_mut(&instance_id)
+        .ok_or(PtyError::WriteError(format!(
+            "Instance with id {} not found.",
+            &instance_id
+        )))?;
+
+    let read_tx = &pty_thread.pty_read_tx;
+    let write_tx = &pty_thread.pty_write_tx;
+
+    read_tx.send(PtyMessage::Resize(rows, cols)).map_err(|e| {
+        PtyError::InternalError(format!(
+            "Error occurred transmitting resize command to instance thread.\n{:?}",
+            e
+        ))
+    })?;
+
+    write_tx.send(PtyMessage::Resize(rows, cols)).map_err(|e| {
+        PtyError::InternalError(format!(
+            "Error occurred transmitting resize command to instance thread.\n{:?}",
+            e
+        ))
+    })?;
+
+    Ok(())
+}
 fn main() {
     let application_state = ApplicationState::create().unwrap();
     tauri::Builder::default()
         .manage(application_state)
-        .invoke_handler(tauri::generate_handler![create, write, destroy])
+        .invoke_handler(tauri::generate_handler![create, write, destroy, resize])
         .run(tauri::generate_context!())
         .expect("Error occurred while running tauri application.");
 }

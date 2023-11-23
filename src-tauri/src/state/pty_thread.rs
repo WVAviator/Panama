@@ -32,5 +32,6 @@ impl PtyThread {
 
 pub enum PtyMessage {
     Write(String),
+    Resize(u16, u16),
     Interrupt,
 }
