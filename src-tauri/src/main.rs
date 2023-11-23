@@ -16,7 +16,7 @@ use state::{
     pty_thread::{PtyMessage, PtyThread},
     ApplicationState,
 };
-use tauri::{command, State, Window};
+use tauri::{command, LogicalSize, Manager, PhysicalSize, Size, State, Window};
 
 #[derive(serde::Serialize)]
 struct CreateResponse {
