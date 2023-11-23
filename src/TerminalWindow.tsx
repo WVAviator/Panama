@@ -20,7 +20,8 @@ const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
       await invoke('create', {
         cols: terminal.cols,
         rows: terminal.rows,
-        instanceId: instanceId,
+        instanceId,
+        command: 'zsh',
       });
 
       const unlisten = await appWindow.listen(`read:${instanceId}`, (event) => {
@@ -28,7 +29,12 @@ const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
         terminal.write(output);
       });
 
-      return () => {
+      return async () => {
+        console.log('Terminal unmounted. Sending interrupt to pty.');
+        await invoke('destroy', {
+          instanceId,
+        });
+
         unlisten();
       };
     } catch (e) {

@@ -10,8 +10,13 @@ use std::{
 };
 
 use pty_response_error::PtyResponseError;
-use state::{pty_error::PtyError, pty_instance::PtyInstance, ApplicationState};
-use tauri::{State, Window};
+use state::{
+    pty_error::PtyError,
+    pty_instance::PtyInstance,
+    pty_thread::{PtyMessage, PtyThread},
+    ApplicationState,
+};
+use tauri::{command, State, Window};
 
 #[derive(serde::Serialize)]
 struct CreateResponse {
@@ -28,35 +33,74 @@ fn create(
     rows: u16,
     cols: u16,
     instance_id: u32,
+    command: String,
     window: Window,
     state: State<'_, ApplicationState>,
 ) -> Result<CreateResponse, PtyResponseError> {
-    println!("Creating pty instance with id: {}", instance_id);
+    let thread_map = Arc::clone(&state.pty_thread_map);
 
-    let (write_tx, write_rx) = std::sync::mpsc::channel();
-
-    let instances_ref = Arc::clone(&state.pty_write_tx_map);
-    {
-        let mut instances = instances_ref.lock().map_err(|e| {
+    if let Some(pty_thread) = thread_map
+        .lock()
+        .map_err(|e| {
             PtyError::InternalError(format!(
-                "Error occurred while obtaining lock to instances map.\n{:?}",
+                "Error occurred while obtaining lock to threads map.\n{:?}",
                 e
             ))
-        })?;
-        instances.insert(instance_id, write_tx);
+        })?
+        .get(&instance_id)
+    {
+        println!("Instance with id {} already exists.", instance_id);
+        pty_thread
+            .pty_write_tx
+            .send(PtyMessage::Write("\n".to_string()))
+            .map_err(|e| {
+                PtyError::InternalError(format!(
+                    "Error occurred while sending command to existing instance.\n{:?}",
+                    e
+                ))
+            })?;
+        return Ok(CreateResponse { instance_id });
     }
 
-    std::thread::spawn(move || {
-        let instance = PtyInstance::create(rows, cols).unwrap();
+    println!("Creating pty instance with id: {}", instance_id);
+
+    let (write_tx, write_rx) = std::sync::mpsc::channel::<PtyMessage>();
+    let (read_tx, read_rx) = std::sync::mpsc::channel::<PtyMessage>();
+
+    let mut threads = thread_map.lock().map_err(|e| {
+        PtyError::InternalError(format!(
+            "Error occurred while obtaining lock to threads map.\n{:?}",
+            e
+        ))
+    })?;
+
+    let pty_thread = std::thread::spawn(move || {
+        let instance = PtyInstance::create(rows, cols, &command).unwrap();
         let mut writer = instance.writer;
 
-        std::thread::spawn(move || loop {
-            let write = write_rx
-                .recv()
-                .expect("Error occurred receiving write message.");
-            writer
-                .write_all(write.as_bytes())
-                .expect("Unable to write to instance");
+        let write_thread = std::thread::spawn(move || loop {
+            match write_rx.recv() {
+                Ok(PtyMessage::Write(input)) => {
+                    writer
+                        .write_all(input.as_bytes())
+                        .expect("Unable to write to instance");
+                }
+                Ok(PtyMessage::Interrupt) => {
+                    println!(
+                        "Interrupting write thread in instance with id: {}",
+                        instance_id
+                    );
+                    // Writing an EOF will unblock the read thread so that it can receive its interrupt message.
+                    writer
+                        .write_all(&[4])
+                        .expect("Unable to write EOF to instance");
+                    break;
+                }
+                _ => {
+                    println!("Error occurred while receiving write message.");
+                    break;
+                }
+            }
         });
 
         let reader = instance
@@ -64,9 +108,21 @@ fn create(
             .master
             .try_clone_reader()
             .expect("Error occurred cloning reader from pty master.");
+
         let mut buf_reader = BufReader::new(reader);
 
         loop {
+            match read_rx.try_recv() {
+                Ok(PtyMessage::Interrupt) => {
+                    println!(
+                        "Interrupting read thread in instance with id: {}",
+                        instance_id
+                    );
+                    break;
+                }
+                _ => {}
+            }
+
             let data = buf_reader
                 .fill_buf()
                 .expect("Error occurred during buffer read.");
@@ -83,7 +139,11 @@ fn create(
                 )
                 .expect("Error occurred while emitting window read event.");
         }
+
+        write_thread.join().expect("Unable to join write thread.");
     });
+
+    threads.insert(instance_id, PtyThread::new(read_tx, write_tx, pty_thread));
 
     Ok(CreateResponse { instance_id })
 }
@@ -94,20 +154,21 @@ fn write(
     input: String,
     state: State<'_, ApplicationState>,
 ) -> Result<(), PtyResponseError> {
-    let instances_ref = Arc::clone(&state.pty_write_tx_map);
-    let mut instances = instances_ref.lock().map_err(|e| {
+    let thread_map = Arc::clone(&state.pty_thread_map);
+    let mut threads = thread_map.lock().map_err(|e| {
         PtyError::InternalError(format!(
             "Error occurred obtaining lock to instaces map.\n{:?}",
             e
         ))
     })?;
-    let tx = instances
+    let pty_thread = threads
         .get_mut(&instance_id)
         .ok_or(PtyError::WriteError(format!(
             "Instance with id {} not found.",
             &instance_id
         )))?;
-    tx.send(input).map_err(|e| {
+    let write_tx = &pty_thread.pty_write_tx;
+    write_tx.send(PtyMessage::Write(input)).map_err(|e| {
         PtyError::InternalError(format!(
             "Error occurred transmitting write to instance thread.\n{:?}",
             e
@@ -119,15 +180,44 @@ fn write(
 
 #[tauri::command]
 fn destroy(instance_id: u32, state: State<'_, ApplicationState>) -> Result<(), PtyResponseError> {
-    let instances_ref = Arc::clone(&state.pty_write_tx_map);
-    let mut instances = instances_ref.lock().map_err(|e| {
+    let thread_map = Arc::clone(&state.pty_thread_map);
+    let mut threads = thread_map.lock().map_err(|e| {
         PtyError::InternalError(format!(
             "Error occurred obtaining lock to instaces map.\n{:?}",
             e
         ))
     })?;
 
-    instances.remove(&instance_id);
+    let pty_thread = threads
+        .get_mut(&instance_id)
+        .ok_or(PtyError::WriteError(format!(
+            "Instance with id {} not found.",
+            &instance_id
+        )))?;
+
+    let read_tx = &pty_thread.pty_read_tx;
+    let write_tx = &pty_thread.pty_write_tx;
+
+    // The read interrupt is sent first because BufReader is blocking.
+    // The write interrupt will send an EOF which will unblock the read thread, which will then get the interrupt message.
+
+    read_tx.send(PtyMessage::Interrupt).map_err(|e| {
+        PtyError::InternalError(format!(
+            "Error occurred transmitting interrupt to instance thread.\n{:?}",
+            e
+        ))
+    })?;
+
+    write_tx.send(PtyMessage::Interrupt).map_err(|e| {
+        PtyError::InternalError(format!(
+            "Error occurred transmitting interrupt to instance thread.\n{:?}",
+            e
+        ))
+    })?;
+
+    pty_thread.join()?;
+
+    threads.remove(&instance_id);
 
     Ok(())
 }
@@ -136,7 +226,7 @@ fn main() {
     let application_state = ApplicationState::create().unwrap();
     tauri::Builder::default()
         .manage(application_state)
-        .invoke_handler(tauri::generate_handler![create, write])
+        .invoke_handler(tauri::generate_handler![create, write, destroy])
         .run(tauri::generate_context!())
         .expect("Error occurred while running tauri application.");
 }
