@@ -3,6 +3,7 @@ import { appWindow } from '@tauri-apps/api/window';
 import { FitAddon } from '@xterm/addon-fit';
 import { Accessor } from 'solid-js';
 import { Terminal, XTerm } from 'solid-xterm';
+import './TerminalWindow.css';
 
 interface ReadResponse {
   output: string;
@@ -56,7 +57,10 @@ const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
   };
 
   return (
-    <div style={{ display: active() ? 'block' : 'none' }}>
+    <div
+      style={{ display: active() ? 'block' : 'none' }}
+      class="terminal-container"
+    >
       <XTerm
         onData={handleData}
         onMount={handleMount}
