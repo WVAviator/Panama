@@ -1,51 +1,70 @@
-import { createSignal } from 'solid-js';
-import logo from './assets/logo.svg';
-import { invoke } from '@tauri-apps/api/tauri';
+import { For, createMemo, createSignal } from 'solid-js';
 import './App.css';
+import Tabs from './Tabs';
+import TerminalWindow from './TerminalWindow';
 
 function App() {
-  const [greetMsg, setGreetMsg] = createSignal('');
-  const [name, setName] = createSignal('');
+  const [tabIds, setTabIds] = createSignal<number[]>([0, 1]);
+  const [tabNames, setTabNames] = createSignal<string[]>([
+    'New Tab',
+    'New Tab',
+  ]);
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-    setGreetMsg(await invoke('greet', { name: name() }));
-  }
+  const [activeTab, setActiveTab] = createSignal(0);
 
   return (
-    <div class="container">
-      <h1>Welcome to Tauri!</h1>
+    <div>
+      <Tabs
+        tabNames={tabNames}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+      />
+      <For each={tabIds()}>
+        {(tabId, index) => {
+          const derivedActiveSignal = createMemo(() => activeTab() === index());
+          const handleDirChange = (dir: string) => {
+            const dirParts = dir.split('/');
+            const lastDir = dirParts[dirParts.length - 1];
 
-      <div class="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/vite.svg" class="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" class="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://solidjs.com" target="_blank">
-          <img src={logo} class="logo solid" alt="Solid logo" />
-        </a>
-      </div>
+            setTabNames((prevTabNames) => {
+              const newTabNames = [...prevTabNames];
+              newTabNames[index()] = lastDir;
+              return newTabNames;
+            });
 
-      <p>Click on the Tauri, Vite, and Solid logos to learn more.</p>
-
-      <form
-        class="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
+            console.log('Dir changed to', lastDir);
+          };
+          return (
+            <TerminalWindow
+              instanceId={tabId}
+              active={derivedActiveSignal}
+              onDirChange={handleDirChange}
+            />
+          );
         }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-
-      <p>{greetMsg()}</p>
+      </For>
+      {/* {tabs().map((tab, index) => {
+        const derivedActiveSignal = createMemo(() => activeTab() === index);
+        const derivedTabIdSignal = createMemo(() => tab.instanceId);
+        const handleDirChange = (dir: string) => {
+          const dirParts = dir.split('/');
+          const lastDir = dirParts[dirParts.length - 1];
+          // const newTabs = [...tabs()];
+          // newTabs[index] = {
+          //   ...newTabs[index],
+          //   title: lastDir,
+          // };
+          // setTabs(newTabs);
+          console.log('Dir changed to', lastDir);
+        };
+        return (
+          <TerminalWindow
+            instanceId={derivedTabIdSignal()}
+            active={derivedActiveSignal}
+            onDirChange={handleDirChange}
+          />
+        );
+      })} */}
     </div>
   );
 }
