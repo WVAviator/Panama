@@ -1,7 +1,7 @@
-import { invoke } from '@tauri-apps/api';
+import { invoke, window } from '@tauri-apps/api';
 import { appWindow } from '@tauri-apps/api/window';
 import { FitAddon } from '@xterm/addon-fit';
-import { Accessor } from 'solid-js';
+import { Accessor, createMemo } from 'solid-js';
 import { Terminal, XTerm } from 'solid-xterm';
 import './TerminalWindow.css';
 
@@ -16,6 +16,8 @@ interface TerminalProps {
 }
 
 const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
+  const fitAddon = createMemo(() => new FitAddon());
+
   const handleMount = async (terminal: Terminal) => {
     try {
       await invoke('create', {
@@ -30,6 +32,10 @@ const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
         terminal.write(output);
       });
 
+      const resizeUnlisten = await appWindow.onResized(() => {
+        fitAddon().fit();
+      });
+
       return async () => {
         console.log('Terminal unmounted. Sending interrupt to pty.');
         await invoke('destroy', {
@@ -37,6 +43,7 @@ const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
         });
 
         unlisten();
+        resizeUnlisten();
       };
     } catch (e) {
       console.error(e);
@@ -93,7 +100,7 @@ const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
         options={{
           fontFamily: '"JetBrains Mono", "Roboto Mono", monospace',
         }}
-        addons={[FitAddon]}
+        addons={[fitAddon()]}
       />
     </div>
   );

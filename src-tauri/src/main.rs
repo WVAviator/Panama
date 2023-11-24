@@ -97,12 +97,6 @@ fn create(
                         .expect("Unable to write EOF to instance");
                     break;
                 }
-                Ok(PtyMessage::Resize(_, _)) => {
-                    // Writing an EOF will unblock the read thread so that it can receive its interrupt message.
-                    writer
-                        .write_all(&[4])
-                        .expect("Unable to write EOF to instance");
-                }
                 _ => {
                     println!("Error occurred while receiving write message.");
                     break;
@@ -267,13 +261,6 @@ fn resize(
     let write_tx = &pty_thread.pty_write_tx;
 
     read_tx.send(PtyMessage::Resize(rows, cols)).map_err(|e| {
-        PtyError::InternalError(format!(
-            "Error occurred transmitting resize command to instance thread.\n{:?}",
-            e
-        ))
-    })?;
-
-    write_tx.send(PtyMessage::Resize(rows, cols)).map_err(|e| {
         PtyError::InternalError(format!(
             "Error occurred transmitting resize command to instance thread.\n{:?}",
             e
