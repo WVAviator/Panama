@@ -4,15 +4,12 @@
 mod pty_response_error;
 mod state;
 
-use std::{
-    io::{BufRead, BufReader},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use portable_pty::PtySize;
 use pty_response_error::PtyResponseError;
 use state::{pty_error::PtyError, pty_instance::PtyInstanceThread, ApplicationState};
-use tauri::{command, LogicalSize, Manager, PhysicalSize, Size, State, Window};
+use tauri::{State, Window};
 
 #[derive(serde::Serialize)]
 struct CreateResponse {
@@ -52,9 +49,9 @@ fn create(
             cols,
             pixel_width: 0,
             pixel_height: 0,
-        });
+        })?;
 
-        pty_thread.write(String::from("\r\n"));
+        pty_thread.write(String::from("\r\n"))?;
 
         return Ok(CreateResponse { instance_id });
     }
@@ -62,13 +59,15 @@ fn create(
     println!("Creating pty instance with id: {}", instance_id);
 
     let handler_fn = Box::new(move |output: String| {
-        window.emit(
-            format!("read:{}", instance_id).as_str(),
-            ReadResponse { output },
-        );
+        window
+            .emit(
+                format!("read:{}", instance_id).as_str(),
+                ReadResponse { output },
+            )
+            .expect("Error occurred while emitting read event.");
     });
 
-    let mut pty_instance_thread = PtyInstanceThread::new(
+    let pty_instance_thread = PtyInstanceThread::new(
         PtySize {
             rows,
             cols,
