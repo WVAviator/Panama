@@ -17,10 +17,9 @@ interface TerminalProps {
 
 const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
   const fitAddon = createMemo(() => new FitAddon());
+  const isActive = createMemo(() => active());
 
   const handleMount = async (terminal: Terminal) => {
-    terminal.refresh(0, terminal.rows - 1);
-
     try {
       await invoke('create', {
         cols: terminal.cols,
@@ -37,6 +36,15 @@ const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
       const resizeUnlisten = await appWindow.onResized(() => {
         fitAddon().fit();
       });
+
+      // This will essentially refresh all visible content in the terminal when the component is reloaded.
+      terminal.refresh(0, terminal.rows - 1);
+      terminal.resize(terminal.cols, terminal.rows + 1);
+      terminal.resize(terminal.cols, terminal.rows - 1);
+
+      if (isActive()) {
+        terminal.focus();
+      }
 
       return async () => {
         console.log('Terminal unmounted. Sending interrupt to pty.');

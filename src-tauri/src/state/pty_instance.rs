@@ -148,25 +148,47 @@ impl PtyReaderThread {
         let reader = pty_pair.lock().unwrap().master.try_clone_reader().unwrap();
         let mut buf_reader = BufReader::new(reader);
 
-        let join_handle = std::thread::spawn(move || loop {
-            match read_rx.try_recv() {
-                Ok(PtyThreadMessage::Interrupt) => {
-                    println!("Interrupting read thread.");
-                    break;
+        let join_handle = std::thread::spawn(move || {
+            let mut carryover_data = Vec::<u8>::new();
+            loop {
+                match read_rx.try_recv() {
+                    Ok(PtyThreadMessage::Interrupt) => {
+                        println!("Interrupting read thread.");
+                        break;
+                    }
+                    _ => {}
                 }
-                _ => {}
+
+                let data = buf_reader
+                    .fill_buf()
+                    .expect("Error occurred during buffer read.");
+
+                let merged_data = [&carryover_data[..], &data[..]].concat();
+                let data_len = merged_data.len();
+
+                carryover_data.clear();
+
+                // If a multibyte character is split along a buffer boundary, this will store the multibyte character in
+                // carryover_data and prepend it to the next buffer read.
+                let data_string = match String::from_utf8(merged_data.clone()) {
+                    Ok(valid_string) => valid_string,
+                    Err(e) => {
+                        let valid_up_to = e.utf8_error().valid_up_to();
+                        if valid_up_to > 0 {
+                            carryover_data = merged_data[valid_up_to..].to_vec();
+
+                            String::from_utf8(merged_data[..valid_up_to].to_vec())
+                                .unwrap_or_else(|_| String::new())
+                        } else {
+                            String::new()
+                        }
+                    }
+                };
+
+                buf_reader.consume(data_len);
+
+                handler(data_string);
             }
-
-            let data = buf_reader
-                .fill_buf()
-                .expect("Error occurred during buffer read.");
-            let len = data.len();
-
-            let data =
-                String::from_utf8(data.to_vec()).expect("Unable to parse read buffer into string.");
-            buf_reader.consume(len);
-
-            handler(data);
         });
 
         PtyReaderThread {
