@@ -13,3 +13,9 @@ html {
   width: 100%;
   height: 100%;
 }
+
+.xterm-cursor-block {
+  /* Temporary fix until new XTerm update that adds !important in its computed css */
+  background-color: #ffffff !important;
+  color: #6c6c6c !important;
+}

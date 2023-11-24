@@ -19,6 +19,8 @@ const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
   const fitAddon = createMemo(() => new FitAddon());
 
   const handleMount = async (terminal: Terminal) => {
+    terminal.refresh(0, terminal.rows - 1);
+
     try {
       await invoke('create', {
         cols: terminal.cols,

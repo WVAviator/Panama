@@ -52,6 +52,16 @@ fn create(
     {
         println!("Instance with id {} already exists.", instance_id);
         pty_thread
+            .pty_read_tx
+            .send(PtyMessage::Resize(rows, cols))
+            .map_err(|e| {
+                PtyError::InternalError(format!(
+                    "Error occurred while sending resize command to existing instance.\n{:?}",
+                    e
+                ))
+            })?;
+
+        pty_thread
             .pty_write_tx
             .send(PtyMessage::Write("\n".to_string()))
             .map_err(|e| {
