@@ -10,7 +10,7 @@ The vision for the project is to allow the user to input some "context" about wh
 
 For example - let's say the user has just SSH'ed into a new Linux environment and is looking to follow the typical environment setup process - installing/updating necessary applications, setting up users and a firewall, obtaining an SSL certificate, downloading and installing Docker, etc. By providing a plain text description of what they are doing - something like, "I am setting up this newly installed Ubuntu environment to run my Node application in Docker and expose it via port 80 with an SSL certificate," - then the LLM can provide autocomplete suggestions that align with the user's goals.
 
-It might also be reasonable to experiment with the idea of allowing the LLM to also pass ANSI escape sequences to move the cursor, helping the user edit files in applications like Nano or VIM. This might require a specially trained model, and a specialized interface to allow the user to preview the action in some way.
+It might also be reasonable, as a stretch feature, to experiment with the idea of allowing the LLM to also pass ANSI escape sequences to move the cursor, helping the user edit files in applications like Nano or VIM. This might require a specially trained model, and a specialized interface to allow the user to preview the action in some way.
 
 ## Contributing
 
