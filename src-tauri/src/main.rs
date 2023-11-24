@@ -51,8 +51,6 @@ fn create(
             pixel_height: 0,
         })?;
 
-        pty_thread.write(String::from("\r\n"))?;
-
         return Ok(CreateResponse { instance_id });
     }
 
