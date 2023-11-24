@@ -1,16 +1,15 @@
 pub mod pty_error;
 pub mod pty_instance;
-pub mod pty_thread;
 
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
 
-use self::{pty_error::PtyError, pty_thread::PtyThread};
+use self::{pty_error::PtyError, pty_instance::PtyInstanceThread};
 
 pub struct ApplicationState {
-    pub pty_thread_map: Arc<Mutex<HashMap<u32, PtyThread>>>,
+    pub pty_thread_map: Arc<Mutex<HashMap<u32, PtyInstanceThread>>>,
 }
 
 impl ApplicationState {
