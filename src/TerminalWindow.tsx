@@ -1,4 +1,4 @@
-import { invoke, window } from '@tauri-apps/api';
+import { invoke } from '@tauri-apps/api';
 import { appWindow } from '@tauri-apps/api/window';
 import { FitAddon } from '@xterm/addon-fit';
 import { Accessor, createMemo } from 'solid-js';
