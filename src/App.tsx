@@ -31,8 +31,6 @@ function App() {
               newTabNames[index()] = lastDir;
               return newTabNames;
             });
-
-            console.log('Dir changed to', lastDir);
           };
           return (
             <TerminalWindow
@@ -43,28 +41,6 @@ function App() {
           );
         }}
       </For>
-      {/* {tabs().map((tab, index) => {
-        const derivedActiveSignal = createMemo(() => activeTab() === index);
-        const derivedTabIdSignal = createMemo(() => tab.instanceId);
-        const handleDirChange = (dir: string) => {
-          const dirParts = dir.split('/');
-          const lastDir = dirParts[dirParts.length - 1];
-          // const newTabs = [...tabs()];
-          // newTabs[index] = {
-          //   ...newTabs[index],
-          //   title: lastDir,
-          // };
-          // setTabs(newTabs);
-          console.log('Dir changed to', lastDir);
-        };
-        return (
-          <TerminalWindow
-            instanceId={derivedTabIdSignal()}
-            active={derivedActiveSignal}
-            onDirChange={handleDirChange}
-          />
-        );
-      })} */}
     </div>
   );
 }
