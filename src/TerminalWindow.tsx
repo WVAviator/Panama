@@ -1,9 +1,11 @@
-import { invoke, window } from '@tauri-apps/api';
+import { invoke } from '@tauri-apps/api';
 import { appWindow } from '@tauri-apps/api/window';
 import { FitAddon } from '@xterm/addon-fit';
-import { Accessor, createMemo } from 'solid-js';
+import { Accessor, createMemo, useContext } from 'solid-js';
 import { Terminal, XTerm } from 'solid-xterm';
+import { SnapshotAddon } from 'xterm-addon-snapshot';
 import './TerminalWindow.css';
+import { AIContext } from './AISession/AIProvider';
 
 interface ReadResponse {
   output: string;
@@ -17,6 +19,9 @@ interface TerminalProps {
 
 const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
   const fitAddon = createMemo(() => new FitAddon());
+  const snapshotAddon = createMemo(() => new SnapshotAddon());
+
+  const aiContext = useContext(AIContext);
 
   const handleMount = async (terminal: Terminal) => {
     terminal.refresh(0, terminal.rows - 1);
@@ -93,6 +98,22 @@ const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
         onData={handleData}
         onMount={handleMount}
         onResize={handleResize}
+        onWriteParsed={(terminal) => {
+          snapshotAddon().withDebounce(async (snapshot) => {
+            if (!snapshot.isAppending) return;
+            if (!aiContext) {
+              console.error('No AI context found.');
+              return;
+            }
+            const context = {
+              viewport: snapshot.text.viewport(),
+              currentLine: snapshot.text.cursor(),
+              additionalContext: '',
+            };
+            // const response = await aiContext.query(context);
+            // console.log('Autocomplete response:', response);
+          }, 5000);
+        }}
         onTitleChange={(title) => {
           if (title.includes(':')) {
             const titleParts = title.split(':');
@@ -102,7 +123,7 @@ const TerminalWindow = ({ instanceId, active, onDirChange }: TerminalProps) => {
         options={{
           fontFamily: '"JetBrains Mono", "Roboto Mono", monospace',
         }}
-        addons={[fitAddon()]}
+        addons={[fitAddon(), snapshotAddon()]}
       />
     </div>
   );
